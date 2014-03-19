@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 import threading, logging, time
 
-from kafka.client import KafkaClient
+from kafka.client import Kafka081Client
 
 class Producer(threading.Thread):
     daemon = True
 
     def run(self):
-        client = KafkaClient("localhost:9092")
+        client = Kafka081Client("localhost:9092")
         producer = client.simple_producer()
 
         while True:
@@ -21,7 +21,7 @@ class Consumer(threading.Thread):
     daemon = True
 
     def run(self):
-        client = KafkaClient("localhost:9092")
+        client = Kafka081Client("localhost:9092")
         consumer = client.simple_consumer('test-group', 'my-topic')
 
         for message in consumer:
