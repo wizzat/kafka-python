@@ -80,15 +80,15 @@ class KafkaError(RuntimeError):
     pass
 
 
-class KafkaRequestError(KafkaError):
-    pass
-
-
 class KafkaUnavailableError(KafkaError):
     pass
 
 
 class BrokerResponseError(KafkaError):
+    pass
+
+
+class LeaderUnavailableError(KafkaError):
     pass
 
 
