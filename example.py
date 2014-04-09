@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import threading, logging, time
-
 from kafka.client import Kafka081Client
 
 class Producer(threading.Thread):
