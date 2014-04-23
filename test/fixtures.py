@@ -11,22 +11,27 @@ from .service import ExternalService, SpawnedService
 from .testutil import get_open_port
 
 class Fixture(object):
-    project_root = os.environ.get('PROJECT_ROOT', os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+    kafka_version = os.environ.get('KAFKA_VERSION', '0.8.0')
     scala_version = os.environ.get("SCALA_VERSION", '2.8.0')
-    kafka_root = os.environ.get("KAFKA_ROOT", os.path.join(project_root, "kafka-src"))
+    project_root = os.environ.get('PROJECT_ROOT', os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+    kafka_root = os.environ.get("KAFKA_ROOT", os.path.join(project_root, 'servers', kafka_version, "kafka-src"))
     ivy_root = os.environ.get('IVY_ROOT', os.path.expanduser("~/.ivy2/cache"))
 
     @classmethod
     def test_resource(cls, filename):
-        return os.path.join(cls.project_root, "test", "resources", filename)
+        return os.path.join(cls.project_root, "servers", cls.kafka_version, "resources", filename)
 
     @classmethod
     def test_classpath(cls):
         # ./kafka-src/bin/kafka-run-class.sh is the authority.
         jars = ["."]
 
-        # assume all dependencies have been packaged into one jar with sbt-assembly's task "assembly-package-dependency"
+        # 0.8.0 build path, should contain the core jar and a deps jar
         jars.extend(glob.glob(cls.kafka_root + "/core/target/scala-%s/*.jar" % cls.scala_version))
+
+        # 0.8.1 build path, should contain the core jar and several dep jars
+        jars.extend(glob.glob(cls.kafka_root + "/core/build/libs/*.jar"))
+        jars.extend(glob.glob(cls.kafka_root + "/core/build/dependant-libs-%s/*.jar" % cls.scala_version))
 
         jars = filter(os.path.exists, map(os.path.abspath, jars))
         return ":".join(jars)
