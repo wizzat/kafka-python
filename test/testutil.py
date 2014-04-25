@@ -11,6 +11,11 @@ import uuid
 from kafka.common import OffsetRequest
 from kafka import KafkaClient
 
+if os.environ.get('USE_GEVENT'):
+    import gevent
+    import gevent.monkey
+    gevent.monkey.patch_all()
+
 __all__ = [
     'random_string',
     'ensure_topic_creation',
