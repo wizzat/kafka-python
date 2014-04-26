@@ -1,10 +1,11 @@
+import functools
 import logging
 import os
 import random
 import socket
 import string
 import time
-import unittest
+import unittest2
 import uuid
 
 from kafka.common import OffsetRequest
@@ -12,9 +13,9 @@ from kafka import KafkaClient
 
 __all__ = [
     'random_string',
-    'skip_integration',
     'ensure_topic_creation',
     'get_open_port',
+    'kafka_versions',
     'KafkaIntegrationTestCase',
     'Timer',
 ]
@@ -23,8 +24,20 @@ def random_string(l):
     s = "".join(random.choice(string.letters) for i in xrange(l))
     return s
 
-def skip_integration():
-    return os.environ.get('SKIP_INTEGRATION')
+def kafka_versions(*versions):
+    def kafka_versions(func):
+        @functools.wraps(func)
+        def wrapper(self):
+            kafka_version = os.environ.get('KAFKA_VERSION')
+
+            if not kafka_version:
+                self.skipTest("no kafka version specified")
+            elif 'all' not in versions and kafka_version not in versions:
+                self.skipTest("unsupported kafka version")
+
+            return func(self)
+        return wrapper
+    return kafka_versions
 
 def ensure_topic_creation(client, topic_name, timeout = 30):
     start_time = time.time()
@@ -43,12 +56,15 @@ def get_open_port():
     sock.close()
     return port
 
-class KafkaIntegrationTestCase(unittest.TestCase):
+class KafkaIntegrationTestCase(unittest2.TestCase):
     create_client = True
     topic = None
 
     def setUp(self):
         super(KafkaIntegrationTestCase, self).setUp()
+        if not os.environ.get('KAFKA_VERSION'):
+            return
+
         if not self.topic:
             self.topic = "%s-%s" % (self.id()[self.id().rindex(".") + 1:], random_string(10))
 
@@ -61,6 +77,9 @@ class KafkaIntegrationTestCase(unittest.TestCase):
 
     def tearDown(self):
         super(KafkaIntegrationTestCase, self).tearDown()
+        if not os.environ.get('KAFKA_VERSION'):
+            return
+
         if self.create_client:
             self.client.close()
 

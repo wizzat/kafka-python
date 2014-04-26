@@ -3,6 +3,7 @@ from __future__ import absolute_import
 from itertools import izip_longest, repeat
 import logging
 import time
+import numbers
 from threading import Lock
 from multiprocessing import Process, Queue as MPQueue, Event, Value
 from Queue import Empty, Queue
@@ -81,6 +82,8 @@ class Consumer(object):
 
         if not partitions:
             partitions = self.client.topic_partitions[topic]
+        else:
+            assert all(isinstance(x, numbers.Integral) for x in partitions)
 
         # Variables for handling offset commits
         self.commit_lock = Lock()
@@ -164,7 +167,7 @@ class Consumer(object):
         if not self.auto_commit or self.auto_commit_every_n is None:
             return
 
-        if self.count_since_commit > self.auto_commit_every_n:
+        if self.count_since_commit >= self.auto_commit_every_n:
             self.commit()
 
     def stop(self):
