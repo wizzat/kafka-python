@@ -1,5 +1,6 @@
 import struct
 import unittest2
+from testutil import *
 
 from kafka import KafkaClient
 from kafka.common import (
@@ -19,7 +20,7 @@ from kafka.protocol import (
     create_gzip_message, create_message, create_snappy_message, KafkaProtocol
 )
 
-class TestProtocol(unittest2.TestCase):
+class TestProtocol(KafkaTestCase):
     def test_create_message(self):
         payload = "test"
         key = "key"

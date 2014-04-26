@@ -1,5 +1,6 @@
 import struct
 import unittest2
+from testutil import *
 
 from kafka.codec import (
     has_snappy, gzip_encode, gzip_decode,
@@ -8,9 +9,8 @@ from kafka.codec import (
 from kafka.protocol import (
     create_gzip_message, create_message, create_snappy_message, KafkaProtocol
 )
-from testutil import *
 
-class TestCodec(unittest2.TestCase):
+class TestCodec(KafkaTestCase):
     def test_gzip(self):
         for i in xrange(1000):
             s1 = random_string(100)

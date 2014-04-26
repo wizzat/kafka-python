@@ -1,11 +1,10 @@
-import os
-import random
 import struct
 import unittest2
 import kafka.util
 import kafka.common
+from testutil import *
 
-class UtilTest(unittest2.TestCase):
+class UtilTest(KafkaTestCase):
     @unittest2.skip("Unwritten")
     def test_relative_unpack(self):
         pass

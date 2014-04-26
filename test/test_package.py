@@ -1,6 +1,6 @@
-import unittest2
+from testutil import *
 
-class TestPackage(unittest2.TestCase):
+class TestPackage(KafkaTestCase):
     def test_top_level_namespace(self):
         import kafka as kafka1
         self.assertEquals(kafka1.KafkaClient.__name__, "KafkaClient")

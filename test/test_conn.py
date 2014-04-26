@@ -1,10 +1,8 @@
-import os
-import random
-import struct
 import unittest2
 import kafka.conn
+from testutil import *
 
-class ConnTest(unittest2.TestCase):
+class ConnTest(KafkaTestCase):
     def test_collect_hosts__happy_path(self):
         hosts = "localhost:1234,localhost"
         results = kafka.conn.collect_hosts(hosts)

@@ -22,6 +22,7 @@ __all__ = [
     'get_open_port',
     'kafka_versions',
     'KafkaIntegrationTestCase',
+    'KafkaTestCase',
     'Timer',
 ]
 
@@ -60,6 +61,9 @@ def get_open_port():
     port = sock.getsockname()[1]
     sock.close()
     return port
+
+class KafkaTestCase(unittest2.TestCase):
+    pass
 
 class KafkaIntegrationTestCase(unittest2.TestCase):
     create_client = True

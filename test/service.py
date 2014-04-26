@@ -1,9 +1,18 @@
+import os
 import re
 import select
-import subprocess
 import sys
 import threading
 import time
+
+if os.environ.get('USE_GEVENT'):
+    import gevent
+    import gevent.monkey
+    import gevent.subprocess as subprocess
+
+    gevent.monkey.patch_all()
+else:
+    import subprocess
 
 __all__ = [
     'ExternalService',
