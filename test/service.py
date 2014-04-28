@@ -4,6 +4,7 @@ import subprocess
 import sys
 import threading
 import time
+import logging
 
 __all__ = [
     'ExternalService',
