@@ -8,30 +8,32 @@ from itertools import count
 from kafka.common import (ErrorMapping, ErrorStrings, TopicAndPartition,
                           ConnectionError, FailedPayloadsError,
                           BrokerResponseError, PartitionUnavailableError,
-                          KafkaUnavailableError, KafkaRequestError)
+                          LeaderUnavailableError,
+                          KafkaUnavailableError)
 
-from kafka.conn import KafkaConnection, DEFAULT_SOCKET_TIMEOUT_SECONDS
+from kafka.conn import collect_hosts, KafkaConnection, DEFAULT_SOCKET_TIMEOUT_SECONDS
 from kafka.protocol import KafkaProtocol
 
 log = logging.getLogger("kafka")
 
-
 class KafkaClient(object):
 
+    server_version = "unknown"
     CLIENT_ID = "kafka-python"
     ID_GEN = count()
 
     # NOTE: The timeout given to the client should always be greater than the
     # one passed to SimpleConsumer.get_message(), otherwise you can get a
     # socket timeout.
-    def __init__(self, host, port, client_id=CLIENT_ID,
+    def __init__(self, hosts, client_id=CLIENT_ID,
                  timeout=DEFAULT_SOCKET_TIMEOUT_SECONDS):
         # We need one connection to bootstrap
         self.client_id = client_id
         self.timeout = timeout
-        self.conns = {               # (host, port) -> KafkaConnection
-            (host, port): KafkaConnection(host, port, timeout=timeout)
-        }
+        self.hosts = collect_hosts(hosts)
+
+        # create connections only when we need them
+        self.conns = {}
         self.brokers = {}            # broker_id -> BrokerMetadata
         self.topics_to_brokers = {}  # topic_id -> broker_id
         self.topic_partitions = {}   # topic_id -> [0, 1, 2, ...]
@@ -41,23 +43,35 @@ class KafkaClient(object):
     #   Private API  #
     ##################
 
-    def _get_conn_for_broker(self, broker):
-        """
-        Get or create a connection to a broker
-        """
-        if (broker.host, broker.port) not in self.conns:
-            self.conns[(broker.host, broker.port)] = \
-                KafkaConnection(broker.host, broker.port, timeout=self.timeout)
+    def _get_conn(self, host, port):
+        "Get or create a connection to a broker using host and port"
+        host_key = (host, port)
+        if host_key not in self.conns:
+            self.conns[host_key] = KafkaConnection(
+                host,
+                port,
+                timeout=self.timeout
+            )
 
-        return self.conns[(broker.host, broker.port)]
+        return self.conns[host_key]
 
     def _get_leader_for_partition(self, topic, partition):
+        """
+        Returns the leader for a partition or None if the partition exists
+        but has no leader.
+
+        PartitionUnavailableError will be raised if the topic or partition
+        is not part of the metadata.
+        """
+
         key = TopicAndPartition(topic, partition)
-        if key not in self.topics_to_brokers:
+        # reload metadata whether the partition is not available
+        # or has no leader (broker is None)
+        if self.topics_to_brokers.get(key) is None:
             self.load_metadata_for_topics(topic)
 
         if key not in self.topics_to_brokers:
-            raise KafkaRequestError("Partition does not exist: %s" % str(key))
+            raise PartitionUnavailableError("%s not available" % str(key))
 
         return self.topics_to_brokers[key]
 
@@ -72,14 +86,15 @@ class KafkaClient(object):
         Attempt to send a broker-agnostic request to one of the available
         brokers. Keep trying until you succeed.
         """
-        for conn in self.conns.values():
+        for (host, port) in self.hosts:
             try:
+                conn = self._get_conn(host, port)
                 conn.send(requestId, request)
                 response = conn.recv(requestId)
                 return response
             except Exception, e:
-                log.warning("Could not send request [%r] to server %s, "
-                            "trying next server: %s" % (request, conn, e))
+                log.warning("Could not send request [%r] to server %s:%i, "
+                            "trying next server: %s" % (request, host, port, e))
                 continue
 
         raise KafkaUnavailableError("All servers failed to process request")
@@ -113,8 +128,11 @@ class KafkaClient(object):
         for payload in payloads:
             leader = self._get_leader_for_partition(payload.topic,
                                                     payload.partition)
-            if leader == -1:
-                raise PartitionUnavailableError("Leader is unassigned for %s-%s" % payload.topic, payload.partition)
+            if leader is None:
+                raise LeaderUnavailableError(
+                    "Leader not available for topic %s partition %s" %
+                    (payload.topic, payload.partition))
+
             payloads_by_broker[leader].append(payload)
             original_keys.append((payload.topic, payload.partition))
 
@@ -126,7 +144,7 @@ class KafkaClient(object):
 
         # For each broker, send the list of request payloads
         for broker, payloads in payloads_by_broker.items():
-            conn = self._get_conn_for_broker(broker)
+            conn = self._get_conn(broker.host, broker.port)
             requestId = self._next_id()
             request = encoder_fn(client_id=self.client_id,
                                  correlation_id=requestId, payloads=payloads)
@@ -163,7 +181,7 @@ class KafkaClient(object):
         return (acc[k] for k in original_keys) if acc else ()
 
     def __repr__(self):
-        return '<KafkaClient client_id=%s>' % (self.client_id)
+        return '<KafkaClient version=%s, client_id=%s>' % (self.server_version, self.client_id)
 
     def _raise_on_response_error(self, resp):
         if resp.error == ErrorMapping.NO_ERROR:
@@ -180,6 +198,23 @@ class KafkaClient(object):
     #################
     #   Public API  #
     #################
+
+    def keyed_producer(self, **kwargs):
+        import kafka
+        return kafka.producer.KeyedProducer(self, **kwargs)
+
+    def simple_producer(self, **kwargs):
+        import kafka
+        return kafka.producer.SimpleProducer(self, **kwargs)
+
+    def simple_consumer(self, group, topic, **kwargs):
+        import kafka
+        return kafka.consumer.SimpleConsumer(self, group, topic, **kwargs)
+
+    def multiprocess_consumer(self, group, topic, **kwargs):
+        import kafka
+        return kafka.consumer.MultiProcessConsumer(self, group, topic, **kwargs)
+
     def reset_topic_metadata(self, *topics):
         for topic in topics:
             try:
@@ -239,13 +274,18 @@ class KafkaClient(object):
             self.reset_topic_metadata(topic)
 
             if not partitions:
+                log.warning('No partitions for %s', topic)
                 continue
 
             self.topic_partitions[topic] = []
             for partition, meta in partitions.items():
-                topic_part = TopicAndPartition(topic, partition)
-                self.topics_to_brokers[topic_part] = brokers[meta.leader]
                 self.topic_partitions[topic].append(partition)
+                topic_part = TopicAndPartition(topic, partition)
+                if meta.leader == -1:
+                    log.warning('No leader for topic %s partition %s', topic, partition)
+                    self.topics_to_brokers[topic_part] = None
+                else:
+                    self.topics_to_brokers[topic_part] = brokers[meta.leader]
 
     def send_produce_request(self, payloads=[], acks=1, timeout=1000,
                              fail_on_error=True, callback=None):
@@ -373,3 +413,30 @@ class KafkaClient(object):
             else:
                 out.append(resp)
         return out
+
+
+class Kafka082Client(KafkaClient):
+    server_version = "0.8.2"
+
+
+class Kafka081Client(KafkaClient):
+    server_version = "0.8.1"
+
+
+class Kafka080Client(KafkaClient):
+    server_version = "0.8.0"
+
+    def simple_consumer(self, group, topic, **kwargs):
+        assert not kwargs.get('auto_commit')
+        kwargs['auto_commit'] = False
+
+        consumer = super(Kafka080Client, self).simple_consumer(group, topic, **kwargs)
+        consumer.seek(0, 2)
+
+        return consumer
+
+    def multiprocess_consumer(self, group, topic, **kwargs):
+        assert not kwargs.get('auto_commit')
+        kwargs['auto_commit'] = False
+
+        return super(Kafka080Client, self).multiprocess_consumer(group, topic, **kwargs)

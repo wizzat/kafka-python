@@ -60,7 +60,7 @@ ErrorStrings = {
     7 : 'REQUEST_TIMED_OUT',
     8 : 'BROKER_NOT_AVAILABLE',
     9 : 'REPLICA_NOT_AVAILABLE',
-    10 : 'MESSAGE_SIZE_TO_LARGE',
+    10 : 'MESSAGE_SIZE_TOO_LARGE',
     11 : 'STALE_CONTROLLER_EPOCH',
     12 : 'OFFSET_METADATA_TOO_LARGE',
 }
@@ -80,15 +80,15 @@ class KafkaError(RuntimeError):
     pass
 
 
-class KafkaRequestError(KafkaError):
-    pass
-
-
 class KafkaUnavailableError(KafkaError):
     pass
 
 
 class BrokerResponseError(KafkaError):
+    pass
+
+
+class LeaderUnavailableError(KafkaError):
     pass
 
 
@@ -117,4 +117,8 @@ class ConsumerFetchSizeTooSmall(KafkaError):
 
 
 class ConsumerNoMoreData(KafkaError):
+    pass
+
+
+class ProtocolError(KafkaError):
     pass
