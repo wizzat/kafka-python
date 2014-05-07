@@ -20,7 +20,7 @@ class TestConsumerIntegration(KafkaIntegrationTestCase):
         cls.server = cls.server1 # Bootstrapping server
 
     @classmethod
-    def tearDownClass(cls):  # noqa
+    def tearDownClass(cls):
         if not os.environ.get('KAFKA_VERSION'):
             return
 
@@ -220,7 +220,7 @@ class TestConsumerIntegration(KafkaIntegrationTestCase):
 
         # Start a consumer
         consumer1 = self.consumer(
-            auto_commit_every_t = 600,
+            auto_commit_every_t = None,
             auto_commit_every_n = 20,
         )
 
@@ -230,7 +230,7 @@ class TestConsumerIntegration(KafkaIntegrationTestCase):
 
         # The total offset across both partitions should be at 180
         consumer2 = self.consumer(
-            auto_commit_every_t = 600,
+            auto_commit_every_t = None,
             auto_commit_every_n = 20,
         )
 
