@@ -63,7 +63,7 @@ class ZookeeperFixture(Fixture):
         if "ZOOKEEPER_URI" in os.environ:
             parse = urlparse(os.environ["ZOOKEEPER_URI"])
             (host, port) = (parse.hostname, parse.port)
-            fixture = ExternalService(host, port)
+            fixture = ExternalService('Zookeeper', host, port)
         else:
             (host, port) = ("127.0.0.1", get_open_port())
             fixture = cls(host, port)
@@ -94,7 +94,7 @@ class ZookeeperFixture(Fixture):
         self.render_template(template, properties, vars(self))
 
         # Configure Zookeeper child process
-        self.child = SpawnedService(self.kafka_run_class_args(
+        self.child = SpawnedService('Zookeeper', self.kafka_run_class_args(
             "org.apache.zookeeper.server.quorum.QuorumPeerMain",
             properties
         ))
@@ -121,7 +121,7 @@ class KafkaFixture(Fixture):
         if "KAFKA_URI" in os.environ:
             parse = urlparse(os.environ["KAFKA_URI"])
             (host, port) = (parse.hostname, parse.port)
-            fixture = ExternalService(host, port)
+            fixture = ExternalService('Kafka', host, port)
         else:
             (host, port) = ("127.0.0.1", get_open_port())
             fixture = KafkaFixture(host, port, broker_id, zk_host, zk_port, zk_chroot, replicas, partitions)
@@ -175,7 +175,7 @@ class KafkaFixture(Fixture):
         self.render_template(template, properties, vars(self))
 
         # Configure Kafka child process
-        self.child = SpawnedService(self.kafka_run_class_args(
+        self.child = SpawnedService('Kafka', self.kafka_run_class_args(
             "kafka.Kafka", properties
         ))
 

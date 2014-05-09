@@ -13,8 +13,9 @@ __all__ = [
 ]
 
 class ExternalService(object):
-    def __init__(self, host, port):
+    def __init__(self, name, host, port):
         print("Using already running service at %s:%d" % (host, port))
+        self.name = name
         self.host = host
         self.port = port
 
@@ -26,9 +27,10 @@ class ExternalService(object):
 
 
 class SpawnedService(threading.Thread):
-    def __init__(self, args=[]):
+    def __init__(self, name, args=[]):
         threading.Thread.__init__(self)
 
+        self.name = name
         self.args = args
         self.captured_stdout = []
         self.captured_stderr = []
@@ -51,10 +53,12 @@ class SpawnedService(threading.Thread):
 
             if self.child.stdout in rds:
                 line = self.child.stdout.readline()
+                self.log_line(line)
                 self.captured_stdout.append(line)
 
             if self.child.stderr in rds:
                 line = self.child.stderr.readline()
+                self.log_line(line)
                 self.captured_stderr.append(line)
 
             if self.should_die.is_set():
@@ -70,13 +74,16 @@ class SpawnedService(threading.Thread):
                     raise RuntimeError("Subprocess has died. Aborting. (args=%s)" % ' '.join(str(x) for x in self.args))
 
     def dump_logs(self):
-        logging.critical('stderr')
+        self.log_line('stderr')
         for line in self.captured_stderr:
-            logging.critical(line.rstrip())
+            self.log_line(line)
 
         logging.critical('stdout')
         for line in self.captured_stdout:
-            logging.critical(line.rstrip())
+            self.log_line(line)
+
+    def log_line(self, line):
+        logging.info('** %s: %s', self.name, line.rstrip())
 
     def wait_for(self, pattern, timeout=10):
         t1 = time.time()
@@ -86,10 +93,10 @@ class SpawnedService(threading.Thread):
                 try:
                     self.child.kill()
                 except:
-                    logging.exception("Received exception when killing child process")
+                    logging.exception("Received exception when killing child process %s", self.name)
                 self.dump_logs()
 
-                raise RuntimeError("Waiting for %r timed out" % pattern)
+                raise RuntimeError("Waiting for %r timed out (%s)" % (pattern, self.name))
 
             if re.search(pattern, '\n'.join(self.captured_stdout), re.IGNORECASE) is not None:
                 return

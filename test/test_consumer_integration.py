@@ -1,9 +1,10 @@
 import os
-from datetime import datetime
+import unittest2
 
 from kafka import *  # noqa
 from kafka.common import *  # noqa
 from kafka.consumer import MAX_FETCH_BUFFER_SIZE_BYTES
+from kafka.codec import has_snappy
 from fixtures import ZookeeperFixture, KafkaFixture
 from testutil import *
 
@@ -28,6 +29,20 @@ class TestConsumerIntegration(KafkaIntegrationTestCase):
         cls.server2.close()
         cls.zk.close()
 
+    def send_snappy_messages(self, partition, messages):
+        messages = create_snappy_message([ self.msg(str(msg)) for msg in messages ])
+        produce = ProduceRequest(self.topic, partition, messages = [ messages ])
+
+        resp, = self.client.send_produce_request([produce])
+        self.assertEquals(resp.error, 0)
+
+    def send_gzip_messages(self, partition, messages):
+        messages = create_gzip_message([ self.msg(str(msg)) for msg in messages ])
+        produce = ProduceRequest(self.topic, partition, messages = [ messages ])
+
+        resp, = self.client.send_produce_request([produce])
+        self.assertEquals(resp.error, 0)
+
     def send_messages(self, partition, messages):
         messages = [ create_message(self.msg(str(msg))) for msg in messages ]
         produce = ProduceRequest(self.topic, partition, messages = messages)
@@ -50,6 +65,37 @@ class TestConsumerIntegration(KafkaIntegrationTestCase):
 
         # Start a consumer
         consumer = self.consumer()
+
+        self.assert_message_count([ message for message in consumer ], 200)
+
+        consumer.stop()
+
+    @unittest2.skipUnless(has_snappy(), "Snappy not available")
+    @kafka_versions("0.8.1")
+    def test_simple_consumer__snappy_compression(self):
+        self.send_snappy_messages(0, range(0, 100))
+        self.send_snappy_messages(1, range(100, 200))
+
+        # Increase buffer size due to messages coming in a compressed batch of messages
+        consumer = self.consumer(
+            buffer_size     = 50000,
+            max_buffer_size = 50000,
+        )
+
+        self.assert_message_count([ message for message in consumer ], 200)
+
+        consumer.stop()
+
+    @kafka_versions("all")
+    def test_simple_consumer__gzip_compression(self):
+        self.send_gzip_messages(0, range(0, 100))
+        self.send_gzip_messages(1, range(100, 200))
+
+        # Increase buffer size due to messages coming in a compressed batch of messages
+        consumer = self.consumer(
+            buffer_size     = 50000,
+            max_buffer_size = 50000,
+        )
 
         self.assert_message_count([ message for message in consumer ], 200)
 

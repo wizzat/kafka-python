@@ -1,6 +1,8 @@
 import os
 import time
+import unittest2
 import uuid
+import kafka.protocol
 
 from kafka import *  # noqa
 from kafka.common import *  # noqa
@@ -66,9 +68,9 @@ class TestKafkaProducerIntegration(KafkaIntegrationTestCase):
             200,
         )
 
-    @kafka_versions("all")
+    @unittest2.skipUnless(has_snappy(), "Snappy not available")
+    @kafka_versions("0.8.1")
     def test_produce_many_snappy(self):
-        self.skipTest("All snappy integration tests fail with nosnappyjava")
         start_offset = self.current_offset(self.topic, 0)
 
         self.assert_produce_request([
@@ -124,11 +126,9 @@ class TestKafkaProducerIntegration(KafkaIntegrationTestCase):
         start_offset1 = self.current_offset(self.topic, 1)
         producer = SimpleProducer(self.client)
 
-        # Goes to first partition, randomly.
         resp = producer.send_messages(self.topic, self.msg("one"), self.msg("two"))
         self.assert_produce_response(resp, start_offset0)
 
-        # Goes to the next partition, randomly.
         resp = producer.send_messages(self.topic, self.msg("three"))
         self.assert_produce_response(resp, start_offset1)
 
@@ -142,26 +142,51 @@ class TestKafkaProducerIntegration(KafkaIntegrationTestCase):
 
         producer.stop()
 
+    @unittest2.skipUnless(has_snappy(), "Snappy not available")
+    @kafka_versions("0.8.1")
+    def test_simple_producer__snappy(self):
+        start_offset0 = self.current_offset(self.topic, 0)
+        start_offset1 = self.current_offset(self.topic, 1)
+        producer = SimpleProducer(self.client, codec = kafka.protocol.CODEC_SNAPPY)
+
+        resp1, = producer.send_messages(self.topic, self.msg("one"), self.msg("two"))
+        resp2, = producer.send_messages(self.topic, self.msg("three"))
+        resp3, = producer.send_messages(self.topic, self.msg("four"), self.msg("five"))
+
+        self.assert_fetch_offset(0, start_offset0, [ self.msg("one"), self.msg("two"), self.msg("four"), self.msg("five") ])
+
+    @kafka_versions("0.8.1")
+    def test_simple_producer__snappy(self):
+        start_offset0 = self.current_offset(self.topic, 0)
+        start_offset1 = self.current_offset(self.topic, 1)
+        producer = SimpleProducer(self.client, codec = kafka.protocol.CODEC_GZIP)
+
+        resp1, = producer.send_messages(self.topic, self.msg("one"), self.msg("two"))
+        resp2, = producer.send_messages(self.topic, self.msg("three"))
+        resp3, = producer.send_messages(self.topic, self.msg("four"), self.msg("five"))
+
+        self.assert_fetch_offset(0, start_offset0, [ self.msg("one"), self.msg("two"), self.msg("four"), self.msg("five") ])
+
     @kafka_versions("all")
     def test_producer_random_order(self):
         producer = SimpleProducer(self.client, random_start = True)
-        resp1 = producer.send_messages(self.topic, self.msg("one"), self.msg("two"))
-        resp2 = producer.send_messages(self.topic, self.msg("three"))
-        resp3 = producer.send_messages(self.topic, self.msg("four"), self.msg("five"))
+        resp1, = producer.send_messages(self.topic, self.msg("one"), self.msg("two"))
+        resp2, = producer.send_messages(self.topic, self.msg("three"))
+        resp3, = producer.send_messages(self.topic, self.msg("four"), self.msg("five"))
 
-        self.assertEqual(resp1[0].partition, resp3[0].partition)
-        self.assertNotEqual(resp1[0].partition, resp2[0].partition)
+        self.assertEqual(resp1.partition, resp3.partition)
+        self.assertNotEqual(resp1.partition, resp2.partition)
 
     @kafka_versions("all")
     def test_producer_ordered_start(self):
         producer = SimpleProducer(self.client, random_start = False)
-        resp1 = producer.send_messages(self.topic, self.msg("one"), self.msg("two"))
-        resp2 = producer.send_messages(self.topic, self.msg("three"))
-        resp3 = producer.send_messages(self.topic, self.msg("four"), self.msg("five"))
+        resp1, = producer.send_messages(self.topic, self.msg("one"), self.msg("two"))
+        resp2, = producer.send_messages(self.topic, self.msg("three"))
+        resp3, = producer.send_messages(self.topic, self.msg("four"), self.msg("five"))
 
-        self.assertEqual(resp1[0].partition, 0)
-        self.assertEqual(resp2[0].partition, 1)
-        self.assertEqual(resp3[0].partition, 0)
+        self.assertEqual(resp1.partition, 0)
+        self.assertEqual(resp2.partition, 1)
+        self.assertEqual(resp3.partition, 0)
 
     @kafka_versions("all")
     def test_round_robin_partitioner(self):
