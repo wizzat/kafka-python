@@ -36,36 +36,42 @@ class Fixture(object):
         jars = filter(os.path.exists, map(os.path.abspath, jars))
         return ":".join(jars)
 
-    @classmethod
-    def kafka_run_class_args(cls, *args):
+    def kafka_run_class_args(self, *args):
         # ./kafka-src/bin/kafka-run-class.sh is the authority.
-        result = ["java", "-Xmx512M", "-server"]
-        result.append("-Dlog4j.configuration=file:%s" % cls.test_resource("log4j.properties"))
-        result.append("-Dcom.sun.management.jmxremote")
-        result.append("-Dcom.sun.management.jmxremote.authenticate=false")
-        result.append("-Dcom.sun.management.jmxremote.ssl=false")
-        result.append("-cp")
-        result.append(cls.test_classpath())
-        result.extend(args)
-        return result
 
-    @classmethod
-    def render_template(cls, source_file, target_file, binding):
+        return [
+            "java",
+            "-Xmx512M",
+            "-server",
+            "-Dlog4j.configuration=file:%s" % self.render_template("log4j.properties"),
+            "-Dcom.sun.management.jmxremote",
+            "-Dcom.sun.management.jmxremote.authenticate=false",
+            "-Dcom.sun.management.jmxremote.ssl=false",
+            "-cp", self.test_classpath(),
+        ] + list(args)
+
+    def render_template(self, resource_name):
+        source_file = self.test_resource(resource_name)
+        target_file = os.path.join(self.tmp_dir, resource_name)
+
         with open(source_file, "r") as handle:
             template = handle.read()
+
         with open(target_file, "w") as handle:
-            handle.write(template.format(**binding))
+            handle.write(template.format(**vars(self)))
+
+        return target_file
 
 
 class ZookeeperFixture(Fixture):
     @classmethod
-    def instance(cls):
+    def instance(cls, port = None):
         if "ZOOKEEPER_URI" in os.environ:
             parse = urlparse(os.environ["ZOOKEEPER_URI"])
             (host, port) = (parse.hostname, parse.port)
             fixture = ExternalService('Zookeeper', host, port)
         else:
-            (host, port) = ("127.0.0.1", get_open_port())
+            (host, port) = ("127.0.0.1", port or get_open_port())
             fixture = cls(host, port)
 
         fixture.open()
@@ -88,15 +94,10 @@ class ZookeeperFixture(Fixture):
         logging.info("  port    = %s", self.port)
         logging.info("  tmp_dir = %s", self.tmp_dir)
 
-        # Generate configs
-        template = self.test_resource("zookeeper.properties")
-        properties = os.path.join(self.tmp_dir, "zookeeper.properties")
-        self.render_template(template, properties, vars(self))
-
         # Configure Zookeeper child process
         self.child = SpawnedService('Zookeeper', self.kafka_run_class_args(
             "org.apache.zookeeper.server.quorum.QuorumPeerMain",
-            properties
+            self.render_template("zookeeper.properties"),
         ))
 
         # Party!
@@ -115,7 +116,7 @@ class ZookeeperFixture(Fixture):
 
 class KafkaFixture(Fixture):
     @classmethod
-    def instance(cls, broker_id, zk_host, zk_port, zk_chroot=None, replicas=1, partitions=2):
+    def instance(cls, broker_id, zk_host, zk_port, zk_chroot=None, replicas=1, partitions=2, port = None):
         if zk_chroot is None:
             zk_chroot = "kafka-python_" + str(uuid.uuid4()).replace("-", "_")
         if "KAFKA_URI" in os.environ:
@@ -123,7 +124,7 @@ class KafkaFixture(Fixture):
             (host, port) = (parse.hostname, parse.port)
             fixture = ExternalService('Kafka', host, port)
         else:
-            (host, port) = ("127.0.0.1", get_open_port())
+            (host, port) = ("127.0.0.1", port or get_open_port())
             fixture = KafkaFixture(host, port, broker_id, zk_host, zk_port, zk_chroot, replicas, partitions)
             fixture.open()
         return fixture
@@ -169,14 +170,9 @@ class KafkaFixture(Fixture):
         os.mkdir(os.path.join(self.tmp_dir, "logs"))
         os.mkdir(os.path.join(self.tmp_dir, "data"))
 
-        # Generate configs
-        template = self.test_resource("kafka.properties")
-        properties = os.path.join(self.tmp_dir, "kafka.properties")
-        self.render_template(template, properties, vars(self))
-
         # Configure Kafka child process
         self.child = SpawnedService('Kafka', self.kafka_run_class_args(
-            "kafka.Kafka", properties
+            "kafka.Kafka", self.render_template("kafka.properties")
         ))
 
         # Party!
