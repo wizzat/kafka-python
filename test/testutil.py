@@ -57,7 +57,6 @@ def get_open_port():
     return port
 
 class KafkaIntegrationTestCase(unittest2.TestCase):
-    create_client = True
     topic = None
 
     def setUp(self):
@@ -68,8 +67,7 @@ class KafkaIntegrationTestCase(unittest2.TestCase):
         if not self.topic:
             self.topic = "%s-%s" % (self.id()[self.id().rindex(".") + 1:], random_string(10))
 
-        if self.create_client:
-            self.client = KafkaClient('%s:%d' % (self.server.host, self.server.port))
+        self.client = KafkaClient(self.server.conn_str)
 
         ensure_topic_creation(self.client, self.topic)
 

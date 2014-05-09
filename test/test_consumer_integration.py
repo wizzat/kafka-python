@@ -14,10 +14,9 @@ class TestConsumerIntegration(KafkaIntegrationTestCase):
         if not os.environ.get('KAFKA_VERSION'):
             return
 
-        cls.zk = ZookeeperFixture.instance()
-        cls.server1 = KafkaFixture.instance(0, cls.zk.host, cls.zk.port)
-        cls.server2 = KafkaFixture.instance(1, cls.zk.host, cls.zk.port)
-
+        cls.zk = ZookeeperFixture()
+        cls.server1 = KafkaFixture(0, cls.zk)
+        cls.server2 = KafkaFixture(1, cls.zk)
         cls.server = cls.server1 # Bootstrapping server
 
     @classmethod

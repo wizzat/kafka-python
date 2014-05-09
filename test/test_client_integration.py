@@ -15,8 +15,8 @@ class TestKafkaClientIntegration(KafkaIntegrationTestCase):
         if not os.environ.get('KAFKA_VERSION'):
             return
 
-        cls.zk = ZookeeperFixture.instance()
-        cls.server = KafkaFixture.instance(0, cls.zk.host, cls.zk.port)
+        cls.zk = ZookeeperFixture()
+        cls.server = KafkaFixture(0, cls.zk)
 
     @classmethod
     def tearDownClass(cls):  # noqa

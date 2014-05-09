@@ -7,8 +7,6 @@ from fixtures import ZookeeperFixture, KafkaFixture
 from testutil import *
 
 class TestFailover(KafkaIntegrationTestCase):
-    create_client = False
-
     @classmethod
     def setUpClass(cls):  # noqa
         if not os.environ.get('KAFKA_VERSION'):
@@ -19,21 +17,17 @@ class TestFailover(KafkaIntegrationTestCase):
         partitions = 2
 
         # mini zookeeper, 2 kafka brokers
-        cls.zk = ZookeeperFixture.instance()
-        kk_args = [cls.zk.host, cls.zk.port, zk_chroot, replicas, partitions]
-        cls.brokers = [KafkaFixture.instance(i, *kk_args) for i in range(replicas)]
-
-        hosts = ['%s:%d' % (b.host, b.port) for b in cls.brokers]
-        cls.client = KafkaClient(hosts)
+        cls.zk = ZookeeperFixture()
+        cls.brokers = [ KafkaFixture(i, cls.zk, zk_chroot, replicas, partitions) for i in range(replicas) ]
 
     @classmethod
     def tearDownClass(cls):
         if not os.environ.get('KAFKA_VERSION'):
             return
 
-        cls.client.close()
         for broker in cls.brokers:
             broker.close()
+
         cls.zk.close()
 
     @kafka_versions("all")

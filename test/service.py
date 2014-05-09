@@ -39,15 +39,12 @@ class SpawnedService(threading.Thread):
         self.captured_output = []
 
     def run(self):
-        self.run_with_handles()
-
-    def run_with_handles(self):
         self.child = subprocess.Popen(
             self.args,
             bufsize=1,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            preexec_fn=os.setpgrp,
+            #preexec_fn=os.setpgrp,
         )
         alive = True
 
@@ -70,10 +67,13 @@ class SpawnedService(threading.Thread):
 
         for fd in rds:
             line = fd.readline()[:-1]
-            logging.info('** %s: %s', self.name, line)
+            self.out(line)
 
             if self.capturing:
                 self.captured_output.append(line)
+
+    def out(self, message):
+        logging.info("*** %s: %s", self.name, message)
 
     def wait_for(self, pattern, timeout=10):
         t1 = time.time()
