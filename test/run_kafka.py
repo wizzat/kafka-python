@@ -36,12 +36,14 @@ if __name__ == '__main__':
         level = log_level,
     )
 
+    kafkas = []
+
     try:
         print 'Starting Zookeeper'
-        zk = fixtures.ZookeeperFixture.instance(port = args.zookeeper_port)
+        zk = fixtures.ZookeeperFixture(port = args.zookeeper_port)
         print 'Started Zookeeper'
         print 'Starting Kafka'
-        kafkas = [ fixtures.KafkaFixture.instance(x, zk.host, zk.port, port = args.port + x) for x in xrange(args.num_kafka) ]
+        kafkas = [ fixtures.KafkaFixture(x, zk, port = args.port + x) for x in xrange(args.num_kafka) ]
         if args.topics:
             topics = args.topics.split(',')
 

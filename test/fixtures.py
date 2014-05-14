@@ -66,7 +66,7 @@ class Fixture(object):
         # Party!
         self.out("Starting...")
         self.child.start()
-        self.child.wait_for(r"Snapshotting")
+        self.child.wait_for(self.success_regex)
         self.out("Done!")
 
     def close(self):
@@ -81,6 +81,7 @@ class Fixture(object):
 
 
 class ZookeeperFixture(Fixture):
+    success_regex = r'Snapshotting'
     def __init__(self, port = None):
         self.host = "127.0.0.1"
         self.port = port or get_open_port()
@@ -118,6 +119,7 @@ class ZookeeperFixture(Fixture):
 
 
 class KafkaFixture(Fixture):
+    success_regex = r'\[Kafka Server [0-9]\], Started'
     def __init__(self, broker_id, zk_fixture, replicas=1, partitions=2, port = None):
         self.broker_id = broker_id
         self.host = "127.0.0.1"
