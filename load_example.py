@@ -2,8 +2,6 @@
 import threading, logging, time, collections
 
 from kafka.client import KafkaClient
-from kafka.consumer import SimpleConsumer
-from kafka.producer import SimpleProducer
 
 msg_size = 524288
 
