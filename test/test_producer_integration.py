@@ -7,7 +7,6 @@ import kafka.protocol
 from kafka import *  # noqa
 from kafka.common import *  # noqa
 from kafka.codec import has_gzip, has_snappy
-from fixtures import ZookeeperFixture, KafkaFixture
 from testutil import *
 
 class TestKafkaProducerIntegration(KafkaIntegrationTestCase):
@@ -18,16 +17,14 @@ class TestKafkaProducerIntegration(KafkaIntegrationTestCase):
         if not os.environ.get('KAFKA_VERSION'):
             return
 
-        cls.zk = ZookeeperFixture()
-        cls.server = KafkaFixture(0, cls.zk)
+        cls.setup_kafka_servers(1)
 
     @classmethod
     def tearDownClass(cls):  # noqa
         if not os.environ.get('KAFKA_VERSION'):
             return
 
-        cls.server.close()
-        cls.zk.close()
+        cls.shutdown_kafka_servers()
 
     @kafka_versions("all")
     def test_produce_many_simple(self):

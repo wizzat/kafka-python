@@ -5,7 +5,6 @@ from kafka import *  # noqa
 from kafka.common import *  # noqa
 from kafka.consumer import MAX_FETCH_BUFFER_SIZE_BYTES
 from kafka.codec import has_snappy
-from fixtures import ZookeeperFixture, KafkaFixture
 from testutil import *
 
 class TestConsumerIntegration(KafkaIntegrationTestCase):
@@ -14,19 +13,14 @@ class TestConsumerIntegration(KafkaIntegrationTestCase):
         if not os.environ.get('KAFKA_VERSION'):
             return
 
-        cls.zk = ZookeeperFixture()
-        cls.server1 = KafkaFixture(0, cls.zk)
-        cls.server2 = KafkaFixture(1, cls.zk)
-        cls.server = cls.server1 # Bootstrapping server
+        cls.setup_kafka_servers(2)
 
     @classmethod
     def tearDownClass(cls):
         if not os.environ.get('KAFKA_VERSION'):
             return
 
-        cls.server1.close()
-        cls.server2.close()
-        cls.zk.close()
+        cls.shutdown_kafka_servers()
 
     def send_snappy_messages(self, partition, messages):
         messages = create_snappy_message([ self.msg(str(msg)) for msg in messages ])

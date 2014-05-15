@@ -6,7 +6,6 @@ import unittest2
 
 import kafka
 from kafka.common import *
-from fixtures import ZookeeperFixture, KafkaFixture
 from testutil import *
 
 class TestKafkaClientIntegration(KafkaIntegrationTestCase):
@@ -15,16 +14,14 @@ class TestKafkaClientIntegration(KafkaIntegrationTestCase):
         if not os.environ.get('KAFKA_VERSION'):
             return
 
-        cls.zk = ZookeeperFixture()
-        cls.server = KafkaFixture(0, cls.zk)
+        cls.setup_kafka_servers(1)
 
     @classmethod
     def tearDownClass(cls):  # noqa
         if not os.environ.get('KAFKA_VERSION'):
             return
 
-        cls.server.close()
-        cls.zk.close()
+        cls.shutdown_kafka_servers()
 
     @unittest2.skip("This doesn't appear to work on Linux?")
     def test_timeout(self):
