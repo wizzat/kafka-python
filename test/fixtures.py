@@ -8,7 +8,6 @@ import uuid
 
 from urlparse import urlparse
 from service import ExternalService, SpawnedService
-from testutil import get_open_port
 
 class Fixture(object):
     kafka_version = os.environ.get('KAFKA_VERSION', '0.8.0')
@@ -82,9 +81,9 @@ class Fixture(object):
 
 class ZookeeperFixture(Fixture):
     success_regex = r'Snapshotting'
-    def __init__(self, port = None):
+    def __init__(self, port):
         self.host = "127.0.0.1"
-        self.port = port or get_open_port()
+        self.port = port
         self.tmp_dir = tempfile.mkdtemp()
         self.process_name = 'Zookeeper [%s:%d]' % (self.host, self.port)
 
@@ -120,11 +119,11 @@ class ZookeeperFixture(Fixture):
 
 class KafkaFixture(Fixture):
     success_regex = r'\[Kafka Server [0-9]\], Started'
-    def __init__(self, broker_id, zk_fixture, replicas=1, partitions=2, port = None):
+    def __init__(self, broker_id, zk_fixture, port, replicas=1, partitions=2):
         self.broker_id = broker_id
         self.host = "127.0.0.1"
-        self.port = port or get_open_port()
-        self.conn_str = '{}:{}'.format(self.host, self.port)
+        self.port = port
+        self.conn_str = "%s:%d" % (self.host, self.port)
         self.process_name = 'Kafka [%s:%d]' % (self.host, self.port)
 
         # Config template parameters

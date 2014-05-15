@@ -12,23 +12,14 @@ class TestFailover(KafkaIntegrationTestCase):
         if not os.environ.get('KAFKA_VERSION'):
             return
 
-        zk_chroot = random_string(10)
-        replicas = 2
-        partitions = 2
-
-        # mini zookeeper, 2 kafka brokers
-        cls.zk = ZookeeperFixture()
-        cls.brokers = [ KafkaFixture(i, cls.zk, zk_chroot, replicas, partitions) for i in range(replicas) ]
+        cls.setup_kafka_servers(num_servers=2, replicas=2, partitions=2)
 
     @classmethod
     def tearDownClass(cls):
         if not os.environ.get('KAFKA_VERSION'):
             return
 
-        for broker in cls.brokers:
-            broker.close()
-
-        cls.zk.close()
+        cls.shutdown_kafka_servers()
 
     @kafka_versions("all")
     def test_switch_leader(self):

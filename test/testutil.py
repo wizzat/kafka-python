@@ -10,6 +10,7 @@ import uuid
 
 from kafka.common import OffsetRequest
 from kafka import KafkaClient
+from fixtures import ZookeeperFixture, KafkaFixture
 
 __all__ = [
     'random_string',
@@ -67,7 +68,7 @@ class KafkaIntegrationTestCase(unittest2.TestCase):
         if not self.topic:
             self.topic = "%s-%s" % (self.id()[self.id().rindex(".") + 1:], random_string(10))
 
-        self.client = KafkaClient(self.server.conn_str)
+        self.client = KafkaClient(",".join([ broker.conn_str for broker in self.brokers ]))
 
         ensure_topic_creation(self.client, self.topic)
 
@@ -78,8 +79,18 @@ class KafkaIntegrationTestCase(unittest2.TestCase):
         if not os.environ.get('KAFKA_VERSION'):
             return
 
-        if self.create_client:
-            self.client.close()
+        self.client.close()
+
+    @classmethod
+    def setup_kafka_servers(cls, num_servers, **kwargs):
+        cls.zk = ZookeeperFixture(port = get_open_port())
+        cls.brokers = [ KafkaFixture(i, cls.zk, port = get_open_port(), **kwargs) for i in range(num_servers) ]
+
+    @classmethod
+    def shutdown_kafka_servers(cls):
+        for broker in cls.brokers:
+            broker.close()
+        cls.zk.close()
 
     def current_offset(self, topic, partition):
         offsets, = self.client.send_offset_request([ OffsetRequest(topic, partition, -1, 1) ])
