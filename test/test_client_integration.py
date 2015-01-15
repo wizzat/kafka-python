@@ -16,19 +16,27 @@ class TestKafkaClientIntegration(KafkaIntegrationTestCase):
         if not os.environ.get('KAFKA_VERSION'):
             return
 
-        cls.zk = ZookeeperFixture.instance()
-        cls.server = KafkaFixture.instance(0, cls.zk.host, cls.zk.port)
+        cls.cluster = cls.new_cluster()
+        cls.cluster.create_random_topics(3)
+        cls.client = cls.cluster.client()
 
     @classmethod
     def tearDownClass(cls):  # noqa
         if not os.environ.get('KAFKA_VERSION'):
             return
 
-        cls.server.close()
-        cls.zk.close()
+        cls.client.close()
+        cls.cluster.kill_all()
+
+    def setUp(self):
+        self.topic = cls.cluster.random_topics.pop()
+        self._messages = {}
 
     @kafka_versions("all")
     def test_consume_none(self):
+        client = self.cluster.client()
+        topic = self.cluster.random_topics.pop()
+
         fetch = FetchRequest(self.topic, 0, 0, 1024)
 
         fetch_resp, = self.client.send_fetch_request([fetch])

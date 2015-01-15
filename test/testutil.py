@@ -9,6 +9,7 @@ import uuid
 
 from six.moves import xrange
 from . import unittest
+from test.cluster import KafkaCluster
 
 from kafka import KafkaClient
 from kafka.common import OffsetRequest
@@ -50,19 +51,22 @@ def get_open_port():
 class KafkaIntegrationTestCase(unittest.TestCase):
     create_client = True
     topic = None
-    server = None
+    cluster = None
 
     def setUp(self):
         super(KafkaIntegrationTestCase, self).setUp()
         if not os.environ.get('KAFKA_VERSION'):
             return
 
+        self.topic = self.cluster.random_topics.pop()
+
         if not self.topic:
             topic = "%s-%s" % (self.id()[self.id().rindex(".") + 1:], random_string(10).decode('utf-8'))
             self.topic = topic.encode('utf-8')
 
-        if self.create_client:
-            self.client = KafkaClient('%s:%d' % (self.server.host, self.server.port))
+        #if self.create_client:
+        #    self.client = self.cluster.client()
+        #    #self.client = KafkaClient('%s:%d' % (svc.host, svc.port))
 
         self.client.ensure_topic_exists(self.topic)
 
@@ -75,6 +79,18 @@ class KafkaIntegrationTestCase(unittest.TestCase):
 
         if self.create_client:
             self.client.close()
+
+    @classmethod
+    def new_cluster(cls, num_brokers = 1, num_topics = 10):
+        cluster = KafkaCluster(
+            kafka_version = os.environ.get('KAFKA_VERSION'),
+            num_brokers = num_brokers,
+            log_func = lambda x, y = 1, z =1: 1,
+        )
+
+        cluster.create_random_topics(num_topics)
+
+        return cluster
 
     def current_offset(self, topic, partition):
         offsets, = self.client.send_offset_request([ OffsetRequest(topic, partition, -1, 1) ])

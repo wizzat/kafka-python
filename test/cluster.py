@@ -3,6 +3,7 @@ import errno
 import logging
 import os
 import os.path
+import random
 import re
 import shutil
 import signal
@@ -18,6 +19,7 @@ import uuid
 def slurp(filename, must_exist=True):
     """
         Find the named file, read it into memory, and return it as a string.
+        github.com/wizzat/wizzat.py
     """
     if not must_exist and not os.path.exists(filename):
         return ''
@@ -26,9 +28,13 @@ def slurp(filename, must_exist=True):
         return fp.read()
 
 
+def random_string(l):
+    return str(uuid.uuid4()).replace('-', '').encode('utf-8')[:l]
+
+
 def get_open_port():
     """
-    Gets an open port on the system
+        Gets an open port on the system
     """
     sock = socket.socket()
     sock.bind(("", 0))
@@ -44,6 +50,7 @@ def mkdirp(path):
         Analogous to mkdir -p
 
         See http://stackoverflow.com/questions/10539823/python-os-makedirs-to-recreate-path
+        github.com/wizzat/wizzat.py, MIT Lic
     """
     try:
         os.makedirs(os.path.expanduser(path))
@@ -53,6 +60,10 @@ def mkdirp(path):
 
 
 def download_file(url, dest_path = None, dest_dir = None, skip_if_exists = True):
+    """
+        Downloads a file
+        github.com/wizzat/wizzat.py, MIT Lic
+    """
     if not dest_path and not dest_dir:
         raise TypeError('Either dest_path or dest_dir must be passed in')
 
@@ -69,14 +80,15 @@ def download_file(url, dest_path = None, dest_dir = None, skip_if_exists = True)
 
 def extract_tarfile(filename, dest_dir, validate = True, gz = None):
     """
-    Sanity checks the tar file to ensure there are no paths which escape.
-    In particular, looks for relative and absolute paths.
+        Sanity checks the tar file to ensure there are no paths which escape.
+        In particular, looks for relative and absolute paths.
 
-    Params:
-    validate checks for unsafe tar files (member paths beginning with .. or /)
-    gz allows overriding the automatic detection of .tar.gz files
+        Params:
+        validate checks for unsafe tar files (member paths beginning with .. or /)
+        gz allows overriding the automatic detection of .tar.gz files
 
-    Returns the path to the extracted tar file (including the root paths)
+        Returns the path to the extracted tar file (including the root paths)
+        github.com/wizzat/wizzat.py, MIT Lic
     """
     if gz == False or not filename.endswith('.gz'):
         mode = 'r'
@@ -109,7 +121,8 @@ subprocess_lock = threading.RLock()
 
 def run_cmd(cmdline, env = None, shell = False):
     """
-    Executes a command, returns the return code and the merged stdout/stderr contents.
+        Executes a command, returns the return code and the merged stdout/stderr contents.
+        github.com/wizzat/wizzat.py, MIT Lic
     """
     global subprocess_lock
     try:
@@ -136,7 +149,8 @@ def run_cmd(cmdline, env = None, shell = False):
 
 def run_daemon(cmdline, env = None, shell = False):
     """
-    Executes a command, returns the subprocess object and the log file
+        Executes a command, returns the subprocess object and the log file
+        github.com/wizzat/wizzat.py, MIT Lic
     """
     global subprocess_lock
     try:
@@ -160,10 +174,11 @@ class StartupFailureError(Exception): pass
 
 class AsyncFileTailer(threading.Thread):
     """
-    Sets up a thread which reads from a file handle and directs the output to a log function.
-    This is particularly useful when multiprocessing.
+        Sets up a thread which reads from a file handle and directs the output to a log function.
+        This is particularly useful when multiprocessing.
 
-    Note that wait_for calls start() for you.
+        Note that wait_for calls start() for you.
+        github.com/wizzat/wizzat.py, MIT Lic
     """
     daemon = True
 
@@ -194,6 +209,9 @@ class AsyncFileTailer(threading.Thread):
 
 
 class Service(object):
+    """
+        github.com/wizzat/wizzat.py, MIT Lic
+    """
     def __init__(self, name, *args, **kwargs):
         self.name = name
         self.args = args
@@ -215,6 +233,10 @@ class Service(object):
 
 
 class SpawnedService(threading.Thread):
+    """
+        github.com/wizzat/wizzat.py, MIT Lic
+    """
+    daemon = True
     def __init__(self, service):
         super(SpawnedService, self).__init__()
         self.service = service
@@ -268,6 +290,9 @@ class SpawnedService(threading.Thread):
 
 
 class SpawnedCluster(object):
+    """
+        github.com/wizzat/wizzat.py, MIT Lic
+    """
     def __init__(self, *args, **kwargs):
         self.args     = args
         self.kwargs   = kwargs
@@ -432,6 +457,13 @@ class KafkaService(KafkaService):
         AsyncFileTailer(log_file, self.log_func).start()
 
 
+
+
+from kafka import KafkaClient
+from kafka.common import LeaderNotAvailableError
+
+
+
 class KafkaCluster(SpawnedCluster):
     dl_path = os.environ.get('KAFKA_DL_PATH', '/tmp/kafka_bins')
 
@@ -452,6 +484,8 @@ class KafkaCluster(SpawnedCluster):
         self.add_service(self.zk_svc(), timeout=5)
         self.add_services([ self.broker_svc(x) for x in range(1, self.kwargs['num_brokers']+1) ], timeout=5)
 
+        self.random_topics = []
+
     def zk_svc(self, kafka_version = None):
         return ZKService('zk',
             kafka_root    = os.path.join(self.dl_path, self.kafka_version),
@@ -469,6 +503,28 @@ class KafkaCluster(SpawnedCluster):
             partitions    = partitions or self.default_topic_partitions,
             log_func      = self.log_func,
         )
+
+    @property
+    def hosts_str(self):
+        kafka_svcs = ( x.service for x in self.services.values() if isinstance(x.service, KafkaService) )
+        host_strs = ( '{}:{}'.format(svc.host, svc.port) for svc in kafka_svcs )
+        return ','.join(host_strs)
+
+    def client(self):
+        return KafkaClient(self.hosts_str)
+
+    def create_random_topics(self, num_topics, timeout=30):
+        client = self.client()
+
+        self.random_topics.extend([ str(random_string(10).decode('utf-8')) for topic in range(num_topics) ])
+        try:
+            client.load_metadata_for_topics(*self.random_topics)
+        except LeaderNotAvailableError:
+            pass
+
+        end_time = time.time() + timeout
+        for topic in self.random_topics:
+            client.ensure_topic_exists(topic, end_time - time.time())
 
     @classmethod
     def download_official_version(cls, kafka_version):
